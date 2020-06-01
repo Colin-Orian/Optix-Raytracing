@@ -4,41 +4,36 @@
 
 #include <iostream>
 #include "../headers/DisplayManager.h"
-
+#include "../headers/Renderer.h"
+#include "../headers/ProgramCreator.h"
+#include <cmath>
 int main(int argc, char **argv) {
-	//Check if OptiX is actually linking properly
-	optix::Context context = optix::Context();
-	int devices = context->getDeviceCount();
-	std::cout << devices << std::endl;
+	int width = 512;
+	int height = 512;
+
+	int rayCount = 1;
+	int entryPoints = 1;
+	int stackSize = 800;
 
 	//Iniatalize the display
-	DisplayManager displayManager = DisplayManager(512, 512, "Test");
+	DisplayManager displayManager = DisplayManager(width, height, "Raytracing");
+
+	Renderer renderer = Renderer(width, height, rayCount, entryPoints, stackSize);
+	ProgramCreator programCreator = ProgramCreator(renderer.getContext());
+	programCreator.createRaygenProgram("ray_generation.ptx", "rayGeneration", 0);
 	
-	float x = 0.0f;
-	float step = 0.1f;
-	bool goPos = true;
+	float counter = 0.0f;
 	while (!displayManager.shouldClose()) {
-		std::vector<float3> data;
+		float redValue = abs(sin(counter));
+		counter += 0.1f;
+		programCreator.createProgramVariable1f("redValue", redValue);
 
-		//This code is just to check if the texture can change each frame. We won't be using it except for testing
-		if (goPos) {
-			x += step;
-			goPos = !(x == 1.0f);
-		}
-		else {
-			x -= step;
-			goPos = x == 0.0f;
-		}
-		for (int i = 0; i < 512 * 512; i++) {
-			float3 temp;
-			temp.x = x;
-			temp.y = 0.0f;
-			temp.z = 0.0f;
-			data.push_back(temp);
-
-		}
+		renderer.render(0);
+		//Even though the buffer is a optix::float3, the two data types have the same structure so this still works
+		std::vector<float3> data = renderer.readOutputBuffer<float3>("result_buffer", width, height);
 
 		displayManager.display(data);
+		
 	}
 	displayManager.cleanUp();
 	return 0;
